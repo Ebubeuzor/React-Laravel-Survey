@@ -1,14 +1,18 @@
-import { PhotoIcon } from '@heroicons/react/20/solid';
-import React, { useState } from 'react'
+import { LinkIcon, PhotoIcon, TrashIcon } from '@heroicons/react/20/solid';
+import React, { useEffect, useState } from 'react'
 import axiosClient from '../axios';
 import TButton from '../components/core/TButton';
 import PageComponent from '../components/PageComponent'
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { v4 as uuidv4 } from "uuid";
 import SurveyQuestions from '../components/SurveyQuestions';
+import { useStateContext } from '../contexts/ContextProvider';
 
 export default function SurveyView() {
+    const {showToast} = useStateContext();
     const navigate = useNavigate();
+    const {id} = useParams();
+    const [loading,setLoading] = useState(false);
     const [error, setError] = useState("");
     const [errorState, setErrorState] = useState("");
     const [errorState2, setErrorState2] = useState("");
@@ -38,7 +42,7 @@ export default function SurveyView() {
             ev.target.value = '';
         }
         reader.readAsDataURL(file);
-    }
+    } 
 
     const onSubmit = (ev) => {
         ev.preventDefault();
@@ -50,11 +54,20 @@ export default function SurveyView() {
         }
 
         delete payload.image_url;
-        axiosClient.post('/survey',payload)
-        .then((res) =>{
+        let res;
+        if (id) {
+            res = axiosClient.put(`/survey/${id}`, payload)
+        }else{
+            res = axiosClient.post('/survey',payload)
+        }
+        res.then((res) =>{
             console.log(res);
-
-            navigate('/surveys')
+            navigate('/surveys');
+            if (id) {
+                showToast('The survey was updated')
+            } else {
+                showToast('The survey was created')
+            }
         })
         .catch((error) =>{
   
@@ -66,6 +79,10 @@ export default function SurveyView() {
   
             console.log(error.response.data.errors);
         })
+
+    }
+
+    const onDelete =  () => {
 
     }
 
@@ -86,12 +103,51 @@ export default function SurveyView() {
         });
         setSurvey({ ...survey }); 
       };
+
+    useEffect(() => {
+        if (id) {
+            setLoading(true)
+            axiosClient.get(`/survey/${id}`)
+            .then(({data}) => {
+                setSurvey(data.data);
+                setLoading(false);
+            })
+        }
+    },[]);
     
   return (
-    <PageComponent title={"Create new Survey"} >
+    <PageComponent 
+        title={!id ? 'Create new Survey' : 'Update Survey'} 
+        buttons={
 
+            <div className='flex gap-2'>
 
-        <form action="#" onSubmit={onSubmit} method="post">
+                <TButton color='green' href={`/survey/public/${survey.slug}`} >
+                    <LinkIcon className='h-4 w-4 mr-2'/>
+                    Public Link
+                </TButton>
+
+                <TButton color='red' onClick={onDelete} >
+                <TrashIcon className='h-4 w-4 mr-2' />
+                    Delete
+                </TButton>
+
+            </div>
+ 
+        }
+    >
+
+        {
+            loading && (<div className="flex justify-center items-center mt-10">
+            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm12 0a8 8 0 100-16v3a5 5 0 010 10v3a8 8 0 000 16 4 4 0 110-8 4 4 0 004-4v-3a5 5 0 010-10v-3z"></path>
+            </svg>
+            <span>Loading...</span>
+        </div>)
+        }
+
+        { !loading && (<form action="#" onSubmit={onSubmit} method="post">
 
 
             <div className="shadow sm:overflow-hidden sm:rounded-md">
@@ -224,7 +280,7 @@ export default function SurveyView() {
                             <input type={"checkbox"} 
                                 name="status" 
                                 id='status' 
-                                value={survey.status} 
+                                checked={survey.status}
                                 onChange = {(ev) =>
                                     setSurvey({...survey,status: ev.target.checked})
                                 }
@@ -260,7 +316,7 @@ export default function SurveyView() {
                     </TButton>
                 </div>
             </div>
-        </form>
+        </form>)}
     </PageComponent>
   )
 }

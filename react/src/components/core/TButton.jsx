@@ -17,6 +17,7 @@ export default function  ({
     "whitespace-nowrap",
     "text-sn",
     "border",
+    "items-center",
     "border-2",
     "border-transparent",
   ];

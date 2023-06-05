@@ -6,6 +6,7 @@ import Surveys from "./views/Surveys"
 import GuestLayout from "./components/GuestLayout"
 import DefaultLayout from "./components/DefultLayout";
 import SurveyView from "./views/SurveyView";
+import SurveyPublicView from "./views/SurveyPublicView";
 
 const router = createBrowserRouter([
     {
@@ -28,11 +29,15 @@ const router = createBrowserRouter([
                 path:'/surveys/create',
                 element: <SurveyView/>
             },
+            {
+                path:'/surveys/:id',
+                element: <SurveyView/>
+            },
         ]
     },
     {
-        path: '/surveys',
-        element: <Surveys/>
+        path: '/survey/public/:slug',
+        element: <SurveyPublicView/>
     },
     {
         path: '/',

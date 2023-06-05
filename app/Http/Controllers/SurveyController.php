@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Enums\QuestionTypeEnum;
+use App\Http\Requests\StoreSurveyAnswerRequest;
 use App\Http\Requests\SurveyStoreRequest;
 use App\Http\Requests\SurveyUpdateRequest;
 use Illuminate\Support\Str;
 use App\Http\Resources\SurveyResource;
 use App\Models\Survey;
+use App\Models\SurveyAnswer;
 use App\Models\SurveyQuestion;
+use App\Models\SurveyQuestionAnswer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Env;
@@ -44,8 +47,7 @@ class SurveyController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    
-     public function store(SurveyStoreRequest $request)
+    public function store(SurveyStoreRequest $request)
     {
         $data = $request->validated();
         
@@ -61,7 +63,6 @@ class SurveyController extends Controller
             }
         }
 
-
         $survey = new Survey();
         $survey->image = $data['image'];
         $survey->title = $data['title'];
@@ -71,22 +72,17 @@ class SurveyController extends Controller
         $survey->expire_date = $data['expire_date'];
         $survey->save();
 
-        
         // Decode the questions array
-        $questions = json_decode($data['questions']);
+        $questions = json_decode($data['questions'], true);
         
         foreach ($questions as $question) {
-            // $question['survey_id'] = $survey->id;
-            // $this->createQuestion($question);
-            
-            $questionObj = (object) $question;
-            $questionObj->survey_id = $survey->id;
-            $this->createQuestion((array) $questionObj);
+            $question['survey_id'] = $survey->id;
+            $this->createQuestion($question);
         }
         
         return new SurveyResource($survey);
-
     }
+
 
     /**
      * Display the specified resource.
@@ -129,7 +125,11 @@ class SurveyController extends Controller
         }
 
         //update survey in the database
-        $survey->update($data);
+        $survey->title = $data['title'];
+        $survey->expire_date = $data['expire_date'];
+        $survey->status = $data['status'];
+        $survey->description = $data['description'];
+        $survey->save();
 
         // get ids as plain array of existing questions
         $existingIds = $survey->questions()->pluck('id')->toArray();
@@ -194,43 +194,43 @@ class SurveyController extends Controller
 
     private function saveImage($image)
     {
-        // check if image is base64 string
-        if (preg_match('/^data:image\/(\w+);base64,/', $image, $type)) {
-
-            // Take out the base64 encoded text without mime type
-            $image = substr($image, strpos($image, ',') + 1);
-
-            //G Get file extension
-            $type = strtolower($type[1]);
+        // Check if image is base64 string
+        if (preg_match('/^data:image\/(\w+);base64,/', $image, $matches)) {
+            $imageData = substr($image, strpos($image, ',') + 1);
+            $imageType = strtolower($matches[1]);
 
             // Check if file is an image
-            if (!in_array($type, ['jpg', 'jpeg', 'gif', 'png'])) {
+            if (!in_array($imageType, ['jpg', 'jpeg', 'gif', 'png'])) {
                 throw new \Exception('Invalid image type');
             }
-            
-            $image = str_replace(' ', '+', $image);
-            $image = base64_encode($image);
-            
-            if($image === false){
-                throw new \Exception('base64_decode failed');
+
+            // Decode base64 image data
+            $decodedImage = base64_decode($imageData);
+
+            if ($decodedImage === false) {
+                throw new \Exception('Failed to decode image');
             }
-            
-        }else {
-            throw new \Exception('Try another image');
+        } else {
+            throw new \Exception('Invalid image format');
         }
 
         $dir = 'images/';
-        $file = Str::random() . '.' . $type;
+        $file = Str::random() . '.' . $imageType;
         $absolutePath = public_path($dir);
         $relativePath = $dir . $file;
+
         if (!File::exists($absolutePath)) {
             File::makeDirectory($absolutePath, 0755, true);
         }
 
-        file_put_contents($relativePath, $image);
+        // Save the decoded image to the file
+        if (!file_put_contents($relativePath, $decodedImage)) {
+            throw new \Exception('Failed to save image');
+        }
 
         return $relativePath;
     }
+
 
 
     private function createQuestion($data)
@@ -265,5 +265,49 @@ class SurveyController extends Controller
         ]);
 
         return $question->update($validator->validated());
+    }
+
+    public function getBySlug(Survey $survey)
+    {
+        if (!$survey->status) {
+            return response("", 404);
+        }
+
+        $currentDate = new \DateTime();
+        $expireDate = new \DateTime($survey->expire_date);
+        if ($currentDate > $expireDate) {
+            return response("", 404);
+        }
+
+        return new SurveyResource($survey);
+    }
+
+    public function storeAnswer(StoreSurveyAnswerRequest $request, Survey $survey)
+    {
+        $validated = $request->validated();
+
+        $surveyAnswer = SurveyAnswer::create([
+            'survey_id' => $survey->id,
+            'start_date' => date('Y-m-d H:i:s'),
+            'end_date' => date('Y-m-d H:i:s'),
+        ]);
+
+        
+        foreach ($validated['answers'] as $questionId => $answer) {
+            $question = SurveyQuestion::where(['id' => $questionId, 'survey_id' => $survey->id])->get();
+            if (!$question) {
+                return response("Invalid question ID: \"$questionId\"", 400);
+            }
+
+            $data = [
+                'survey_question_id' => $questionId,
+                'survey_answer_id' => $surveyAnswer->id,
+                'answer' => is_array($answer) ? json_encode($answer) : $answer
+            ];
+
+            $questionAnswer = SurveyQuestionAnswer::create($data);
+        }
+
+        return response("", 201);
     }
 }

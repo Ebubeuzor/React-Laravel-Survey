@@ -6,8 +6,11 @@ import SurveyListItem from '../components/SurveyListItem';
 import { useStateContext } from '../contexts/ContextProvider'
 import axiosClient from '../axios';
 import PaginatioLinks from '../components/PaginationLinks';
+import router from '../router';
 
 export default function Surveys() {
+
+  const {showToast} = useStateContext();
 
   const [surveys,setSurveys] = useState([]);
 
@@ -15,8 +18,16 @@ export default function Surveys() {
 
   const [loading,setLoading] = useState(false);
 
-  const onDeleteClick = () => {
-    console.log("On Delete click");
+  const onDeleteClick = (id) => {
+    if (window.confirm(` Are you sure you want to delete this survey? `)) {
+      axiosClient.delete(`/survey/${id}`)
+      .then(() => {
+        getSurveys()
+        showToast('The survey was deleted')
+      })
+    } else {
+      
+    }
   }
 
   const getSurveys = (url) => {
@@ -46,6 +57,7 @@ export default function Surveys() {
     <PageComponent title={"Surveys" } buttons={(
       <TButton color='green' to='/surveys/create' >
         <PlusCircleIcon className='h-6 w-6 mr-2' />
+        Create new
       </TButton>
     )} >
 
@@ -60,8 +72,11 @@ export default function Surveys() {
       }
 
       {!loading && (<div>
+        
+        {surveys.length === 0 && <div className='py-8 text-center text-gray-700'>You don't have any survey created</div>}
           
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
+
               {Array.isArray(surveys) && surveys.map((survey) => (
                 <SurveyListItem
                   survey={survey}
@@ -70,7 +85,7 @@ export default function Surveys() {
                 />
               ))}
         </div>
-        <PaginatioLinks meta={meta} onPageClick={onPageClick}/>
+        {surveys.length > 0 && <PaginatioLinks meta={meta} onPageClick={onPageClick}/>}
 
       </div>)}
     </PageComponent>

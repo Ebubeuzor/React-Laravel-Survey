@@ -9,5 +9,13 @@ class SurveyAnswer extends Model
 {
     use HasFactory;
     
+    const CREATED_AT = null;
+    const UPDATED_AT = null;
+    
     protected $guarded = [];
+
+    public function survey()
+    {
+        return $this->belongsTo(Survey::class);
+    } 
 }
